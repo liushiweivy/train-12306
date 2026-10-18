@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+# 本地数据库口令（用 db_config.example.json 复制一份自己填）
+db_config.json
+# 查询缓存（SQLite）
+cache.db*
+# 本机解释器路径覆盖
+python-path.txt

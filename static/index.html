@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>车次票价查询 · train-12306</title>
+<style>
+:root {
+  --blue: #2577e3;
+  --blue-deep: #1a5fc0;
+  --blue-ink: #0d3a75;
+  --paper: #f4f7fc;
+  --card: #ffffff;
+  --line: #dbe4f0;
+  --text: #1c2b3a;
+  --muted: #6b7c93;
+  --green: #1a9e54;
+  --gray: #98a4b3;
+  --orange: #e8830c;
+  --red: #d84545;
+  --radius: 10px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+  background: var(--paper);
+  color: var(--text);
+  min-height: 100vh;
+}
+.topbar {
+  background: linear-gradient(120deg, var(--blue-deep), var(--blue) 60%, #4a9bf0);
+  color: #fff;
+  padding: 14px 0;
+  box-shadow: 0 2px 10px rgba(20, 70, 140, .25);
+}
+.topbar-inner { max-width: 1080px; margin: 0 auto; padding: 0 20px; display: flex; align-items: baseline; gap: 14px; }
+.logo { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+.logo small { font-size: 12px; font-weight: 400; opacity: .85; margin-left: 8px; letter-spacing: 0; }
+.topbar .spacer { flex: 1; }
+.clock { font-size: 12px; opacity: .85; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 22px 20px 60px; }
+
+.query-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: 0 4px 18px rgba(30, 70, 130, .07);
+}
+.query-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 6px; position: relative; }
+.field label { font-size: 12px; color: var(--muted); }
+.field input {
+  height: 42px; padding: 0 12px; font-size: 16px;
+  border: 1.5px solid var(--line); border-radius: 8px; outline: none;
+  width: 200px; background: #fbfdff; transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,119,227,.12); }
+.field.date input { width: 160px; }
+.swap {
+  height: 42px; width: 42px; border-radius: 50%;
+  border: 1.5px solid var(--line); background: #fff; color: var(--blue);
+  font-size: 18px; cursor: pointer; margin-bottom: 0; align-self: flex-end;
+  transition: transform .25s, border-color .15s;
+}
+.swap:hover { border-color: var(--blue); transform: rotate(180deg); }
+.btn-query {
+  height: 42px; padding: 0 34px; font-size: 16px; font-weight: 600;
+  color: #fff; background: linear-gradient(180deg, #3b8bf0, var(--blue));
+  border: none; border-radius: 8px; cursor: pointer; letter-spacing: 6px;
+  box-shadow: 0 3px 10px rgba(37,119,227,.35); transition: filter .15s, transform .1s;
+}
+.btn-query:hover { filter: brightness(1.06); }
+.btn-query:active { transform: translateY(1px); }
+.btn-query:disabled { opacity: .55; cursor: wait; }
+
+.date-chips { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.hot-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+.hot-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.hot-row .chip { padding: 4px 12px; font-size: 12px; }
+.ac-hot { color: var(--orange); font-size: 11px; border: 1px solid #f3d9b8; border-radius: 4px; padding: 0 4px; }
+.chip {
+  padding: 5px 14px; font-size: 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--text);
+  transition: all .15s; user-select: none;
+}
+.chip:hover { border-color: var(--blue); color: var(--blue); }
+.chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+.ac-list {
+  position: absolute; top: 68px; left: 0; right: 0; z-index: 30;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(20, 60, 120, .18); max-height: 264px; overflow-y: auto;
+}
+.ac-item { padding: 9px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.ac-item:hover, .ac-item.active { background: #eaf2fd; }
+.ac-item .py { color: var(--muted); font-size: 12px; }
+.ac-empty { padding: 10px 12px; color: var(--muted); font-size: 13px; }
+
+.toolbar { display: flex; align-items: center; gap: 10px; margin: 18px 2px 10px; flex-wrap: wrap; }
+.toolbar .tlabel { font-size: 13px; color: var(--muted); }
+.summary { margin-left: auto; font-size: 13px; color: var(--muted); }
+.summary b { color: var(--blue-ink); }
+.cache-tag { font-size: 11px; color: var(--orange); border: 1px solid #f3d9b8; background: #fff8ef; padding: 1px 7px; border-radius: 999px; margin-left: 6px; }
+
+.result-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 4px 18px rgba(30,70,130,.07); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+thead th {
+  background: #f0f5fc; color: var(--blue-ink); font-size: 13px; font-weight: 600;
+  padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--blue); }
+th .arrow { font-size: 10px; margin-left: 3px; }
+tbody td { padding: 12px; border-bottom: 1px solid #eef2f8; vertical-align: top; }
+tbody tr:hover { background: #f7faff; }
+tbody tr:last-child td { border-bottom: none; }
+
+.train-code { font-weight: 700; color: var(--blue-ink); font-size: 15px; }
+.train-cat { display: inline-block; font-size: 10px; color: #fff; background: var(--blue); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: 2px; }
+.train-cat.slow { background: #5d7a68; }
+.station-line { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.station-line .st { font-size: 14px; }
+.station-line .tm { font-size: 16px; font-weight: 600; }
+.station-line .arrow-r { color: var(--muted); font-size: 12px; }
+.dur-line { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.day-offset { color: var(--red); font-size: 11px; border: 1px solid #f0c6c6; border-radius: 4px; padding: 0 4px; margin-left: 5px; }
+.book-no { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+.seat-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 520px; }
+.seat {
+  border: 1px solid var(--line); border-radius: 7px; padding: 4px 9px; font-size: 12px;
+  display: inline-flex; gap: 6px; align-items: baseline; background: #fbfcfe; white-space: nowrap;
+}
+.seat .sn { color: var(--text); }
+.seat .sp { color: var(--orange); font-weight: 600; }
+.seat .sa { font-weight: 600; }
+.sa.ok { color: var(--green); }
+.sa.none { color: var(--gray); }
+.seat.noavail { opacity: .62; }
+
+.empty { text-align: center; padding: 46px 20px; color: var(--muted); font-size: 14px; }
+.error-box {
+  margin: 18px 0; padding: 14px 18px; border-radius: var(--radius);
+  background: #fef2f2; border: 1px solid #f3c8c8; color: var(--red);
+  display: flex; align-items: center; gap: 14px; font-size: 14px;
+}
+.error-box button {
+  padding: 6px 16px; border: 1px solid var(--red); color: var(--red);
+  background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.error-box button:hover { background: var(--red); color: #fff; }
+
+.skel { padding: 14px 12px; }
+.skel-row { height: 46px; border-radius: 8px; margin: 10px 0;
+  background: linear-gradient(90deg, #eef2f8 25%, #f7fafd 50%, #eef2f8 75%);
+  background-size: 400% 100%; animation: shimmer 1.2s infinite; }
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+.footnote { margin-top: 16px; font-size: 12px; color: var(--muted); line-height: 1.8; }
+.footnote b { color: var(--text); }
+
+/* ---- 模式页签 ---- */
+.mode-tabs { display: flex; gap: 4px; margin-bottom: -1px; position: relative; z-index: 2; }
+.mtab {
+  padding: 10px 26px; font-size: 15px; cursor: pointer; user-select: none;
+  background: #e6edf7; color: var(--muted); border: 1px solid var(--line);
+  border-bottom: none; border-radius: 10px 10px 0 0; transition: all .15s;
+}
+.mtab:hover { color: var(--blue); }
+.mtab.on { background: var(--card); color: var(--blue-ink); font-weight: 700; }
+.mtab .badge { font-size: 10px; background: var(--orange); color: #fff; border-radius: 999px; padding: 1px 6px; margin-left: 5px; vertical-align: 2px; }
+
+/* ---- 中转方案卡 ---- */
+.plan-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 20px; margin-bottom: 12px; box-shadow: 0 4px 18px rgba(30,70,130,.07);
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.plan-card:hover { border-color: #b9cff0; }
+.plan-idx { font-size: 20px; font-weight: 700; color: var(--blue); min-width: 34px; }
+.plan-legs { flex: 1; min-width: 340px; }
+.leg { display: flex; align-items: center; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
+.leg .tcode { font-weight: 700; color: var(--blue-ink); }
+.leg .cat { font-size: 10px; color: #fff; background: var(--blue); border-radius: 4px; padding: 1px 5px; }
+.leg .cat.slow { background: #5d7a68; }
+.leg .tm { font-weight: 600; }
+.leg .via { color: var(--muted); font-size: 12px; }
+.leg .seat-hint { font-size: 12px; color: var(--orange); }
+.leg-wait {
+  margin: 2px 0 2px 4px; padding: 3px 12px; font-size: 12px; color: var(--orange);
+  background: #fff8ef; border: 1px dashed #f0d3a8; border-radius: 999px; display: inline-block;
+}
+.plan-meta { text-align: right; min-width: 120px; }
+.plan-meta .total { font-size: 15px; font-weight: 700; color: var(--text); }
+.plan-meta .price { font-size: 15px; font-weight: 700; color: var(--orange); margin-top: 4px; }
+.plan-meta .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.transfer-note { font-size: 12px; color: var(--muted); margin: 10px 2px; }
+
+/* ---- 机票卡 ---- */
+.flight-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 26px; box-shadow: 0 4px 18px rgba(30,70,130,.07); text-align: center;
+}
+.flight-card .route-big { font-size: 20px; font-weight: 700; color: var(--blue-ink); margin-bottom: 6px; }
+.flight-card .tip { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.ota-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.ota-btn {
+  display: inline-block; padding: 12px 30px; border-radius: 10px; font-size: 16px; font-weight: 600;
+  text-decoration: none; border: 1.5px solid var(--blue); color: var(--blue);
+  transition: all .15s; background: #fff;
+}
+.ota-btn:hover { background: var(--blue); color: #fff; box-shadow: 0 4px 14px rgba(37,119,227,.35); }
+.ota-btn.primary { background: linear-gradient(180deg, #3b8bf0, var(--blue)); color: #fff; }
+.ota-btn.primary:hover { filter: brightness(1.07); }
+.ota-btn.month { border-color: #e8871e; color: #e8871e; border-style: dashed; }
+.ota-btn.month:hover { background: #e8871e; color: #fff; box-shadow: 0 4px 14px rgba(232,135,30,.35); }
+
+@media (max-width: 760px) {
+  .field input { width: 140px; }
+  .field.date input { width: 140px; }
+  .seat-chips { max-width: none; }
+  .topbar-inner { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">车次票价查询<small>TRAIN-12306 · 本地查询台</small></div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="mode-tabs" role="tablist">
+    <div class="mtab on" data-mode="direct" role="tab">火车直达</div>
+    <div class="mtab" data-mode="transfer" role="tab">中转换乘</div>
+    <div class="mtab" data-mode="flight" role="tab">机票比价<span class="badge">NEW</span></div>
+  </div>
+  <section class="query-card" aria-label="查询条件">
+    <div class="query-row">
+      <div class="field">
+        <label for="fromInput">出发地</label>
+        <input id="fromInput" placeholder="城市 / 车站名 / 拼音" autocomplete="off">
+      </div>
+      <button class="swap" id="swapBtn" title="交换出发地和目的地" aria-label="交换">⇄</button>
+      <div class="field">
+        <label for="toInput">目的地</label>
+        <input id="toInput" placeholder="城市 / 车站名 / 拼音" autocomplete="off">
+      </div>
+      <div class="field date">
+        <label for="dateInput">出发日期</label>
+        <input id="dateInput" type="date">
+      </div>
+      <button class="btn-query" id="queryBtn">查 询</button>
+    </div>
+    <div class="hot-row">
+      <span class="hot-label">热门城市</span>
+      <span id="hotChips" style="display:contents"></span>
+    </div>
+    <div class="date-chips" id="dateChips"></div>
+  </section>
+
+  <div id="msgArea"></div>
+
+  <div id="resultArea" hidden>
+    <div class="toolbar">
+      <span class="tlabel">车型</span>
+      <div class="date-chips" id="catChips" style="margin-top:0"></div>
+      <label class="chip" style="display:flex;align-items:center;gap:5px">
+        <input type="checkbox" id="onlyAvail"> 只看有票
+      </label>
+      <span class="summary" id="summary"></span>
+    </div>
+    <div class="result-card">
+      <table>
+        <thead>
+          <tr>
+            <th>车次</th>
+            <th class="sortable" data-key="fromTime">出发 — 到达<span class="arrow" id="arrTime"></span></th>
+            <th class="sortable" data-key="durationMin">历时<span class="arrow" id="arrDur"></span></th>
+            <th>席别 · 票价 · 余票</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyBox" hidden>没有符合条件的车次</div>
+    </div>
+    <p class="footnote">
+      <b>说明：</b>数据来自 12306 官方接口实时查询（约 10 分钟本地缓存）；余票与官网存在分钟级延迟；卧铺票价为基准参考价（同车不同铺位/区间会有浮动），以 12306 实际购票页为准。
+    </p>
+  </div>
+
+  <div id="transferArea" hidden>
+    <div class="toolbar">
+      <span class="summary" id="transferSummary" style="margin-left:0"></span>
+    </div>
+    <div id="planList"></div>
+    <div class="empty" id="transferEmpty" hidden>没有找到当天可衔接的中转方案，可换日期或考虑相邻车站</div>
+    <p class="footnote">
+      <b>换乘说明：</b>方案为同站换乘，等待 45 分钟 ~ 5 小时；按「出发 → 到达」总耗时排序；参考总价 = 两段最低席别价之和。两段票需分别购买，请留意换乘站是否同站（枢纽大站换乘建议预留更多时间）。
+    </p>
+  </div>
+
+  <div id="flightArea" hidden>
+    <div class="flight-card" id="flightCard" hidden>
+      <div class="route-big" id="flightRoute"></div>
+      <div class="tip">支持国内 50 城 + 国际/港澳台 32 城（东京/首尔/曼谷/新加坡/香港/伦敦/纽约/悉尼…），机票实时价格由各平台风控保护无法直接抓取，点击下方按钮直达官方搜索结果（已预填城市与日期，多家比价选最低）。想看<b>历史高价/均价/低价走势</b>：点「天巡整月低价」一页看全月每天最低价；携程/去哪儿结果页顶部也有「低价日历/特价日历」可切换</div>
+      <div class="ota-row" id="otaRow"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- 状态 ----------
+  var stations = [];
+  var state = {
+    mode: "direct",
+    from: null, to: null, date: "",
+    trains: [], route: null,
+    cat: "全部", onlyAvail: false,
+    sortKey: "fromTime", sortAsc: true
+  };
+  var lastQueryArgs = null;
+
+  var CATS = ["全部", "G", "D", "C", "K", "T", "Z", "普快"];
+  var HOT_CITIES = ["北京", "上海", "广州", "深圳", "杭州", "南京", "成都", "重庆",
+                    "武汉", "西安", "郑州", "长沙", "天津", "苏州", "青岛", "昆明"];
+  var lastTarget = null;  // 最近聚焦的出发/到达输入框，热门 chip 优先填它
+
+  // ---------- 小工具 ----------
+  function el(id) { return document.getElementById(id); }
+  function fmtPrice(p) {
+    if (p == null) return "—";
+    return "¥" + (Number.isInteger(p) ? p : p.toFixed(1));
+  }
+  function fmtDur(min) {
+    return Math.floor(min / 60) + "时" + (min % 60) + "分";
+  }
+  function dateStr(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
+           "-" + String(d.getDate()).padStart(2, "0");
+  }
+  var WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+
+  // ---------- 车站表 ----------
+  function loadStations() {
+    return fetch("/api/stations").then(function (r) { return r.json(); })
+      .then(function (body) {
+        if (!body.ok) throw new Error(body.error || "车站表加载失败");
+        stations = body.data;
+      });
+  }
+
+  function matchStations(q) {
+    if (!q) return [];
+    q = q.trim().toLowerCase();
+    if (!q) return [];
+    var out = [];
+    for (var i = 0; i < stations.length && out.length < 12; i++) {
+      var s = stations[i];
+      if (s.name.indexOf(q) >= 0 || s.pinyin.indexOf(q) === 0 ||
+          s.abbr.indexOf(q) === 0 || s.code.toLowerCase() === q) {
+        out.push(s);
+      }
+    }
+    return out;
+  }
+
+  function hotItems() {
+    // 热门城市映射到车站表条目（保持下拉项结构一致；找不到的造个壳）
+    var out = [];
+    HOT_CITIES.forEach(function (n) {
+      var hit = null;
+      for (var i = 0; i < stations.length; i++) {
+        if (stations[i].name === n) { hit = stations[i]; break; }
+      }
+      out.push(hit || { name: n, code: "", pinyin: "热门", abbr: "" });
+    });
+    return out;
+  }
+
+  function fillHotCity(name) {
+    var fi = el("fromInput"), ti = el("toInput");
+    var target = (lastTarget && !lastTarget.value.trim()) ? lastTarget
+               : !fi.value.trim() ? fi
+               : !ti.value.trim() ? ti : ti;
+    target.value = name;
+    var st = null;
+    for (var i = 0; i < stations.length; i++) {
+      if (stations[i].name === name) { st = stations[i]; break; }
+    }
+    if (target === fi) state.from = st; else state.to = st;
+    lastTarget = target === fi ? ti : fi;  // 下一个自动填另一边
+    target.focus();
+  }
+
+  function resolveInput(input) {
+    var q = input.value.trim();
+    if (!q) return null;
+    for (var i = 0; i < stations.length; i++) {
+      if (stations[i].name === q || stations[i].code === q.toUpperCase()) return stations[i];
+    }
+    var m = matchStations(q);
+    return m.length ? m[0] : null;  // 输入唯一前缀时直接取最匹配项
+  }
+
+  // ---------- 自动补全 ----------
+  function attachAutocomplete(input, onPick) {
+    var box = null, items = [], active = -1;
+
+    function close() { if (box) { box.remove(); box = null; items = []; active = -1; } }
+    function open(list) {
+      close();
+      box = document.createElement("div");
+      box.className = "ac-list";
+      if (!list.length) {
+        var em = document.createElement("div");
+        em.className = "ac-empty";
+        em.textContent = "无匹配车站";
+        box.appendChild(em);
+      }
+      list.forEach(function (s, idx) {
+        var it = document.createElement("div");
+        it.className = "ac-item";
+        var nm = document.createElement("span");
+        nm.textContent = s.name;
+        var py = document.createElement("span");
+        py.className = "py";
+        py.textContent = s.pinyin + " · " + s.code;
+        it.appendChild(nm); it.appendChild(py);
+        it.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          pick(idx);
+        });
+        box.appendChild(it);
+      });
+      input.parentNode.appendChild(box);
+      items = list;
+    }
+    function pick(idx) {
+      if (idx < 0 || idx >= items.length) return;
+      input.value = items[idx].name;
+      onPick(items[idx]);
+      close();
+    }
+    input.addEventListener("input", function () {
+      onPick(null);
+      open(input.value.trim() ? matchStations(input.value) : hotItems());
+    });
+    input.addEventListener("focus", function () {
+      open(input.value.trim() ? matchStations(input.value) : hotItems());
+    });
+    input.addEventListener("blur", function () { setTimeout(close, 120); });
+    input.addEventListener("keydown", function (e) {
+      if (!box) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        active += e.key === "ArrowDown" ? 1 : -1;
+        active = (active + items.length) % Math.max(items.length, 1);
+        var nodes = box.querySelectorAll(".ac-item");
+        nodes.forEach(function (n, i) { n.classList.toggle("active", i === active); });
+      } else if (e.key === "Enter") {
+        if (active >= 0) { e.preventDefault(); pick(active); }
+        else { close(); }
+      } else if (e.key === "Escape") close();
+    });
+  }
+
+  // ---------- 日期 ----------
+  function initDate() {
+    var today = new Date();
+    state.date = dateStr(today);
+    var di = el("dateInput");
+    di.value = state.date;
+    di.min = state.date;
+    var max = new Date(); max.setDate(max.getDate() + 14);
+    di.max = dateStr(max);
+    di.addEventListener("change", function () {
+      state.date = di.value;
+      markDateChip();
+    });
+    var chips = el("dateChips");
+    [["今天", 0], ["明天", 1], ["后天", 2]].forEach(function (pair) {
+      var d = new Date(); d.setDate(d.getDate() + pair[1]);
+      var c = document.createElement("span");
+      c.className = "chip";
+      c.dataset.date = dateStr(d);
+      c.textContent = pair[0] + " " + (d.getMonth() + 1) + "/" + d.getDate() + " 周" + WEEK[d.getDay()];
+      c.addEventListener("click", function () {
+        state.date = c.dataset.date;
+        di.value = state.date;
+        markDateChip();
+      });
+      chips.appendChild(c);
+    });
+    markDateChip();
+  }
+  function markDateChip() {
+    var nodes = el("dateChips").querySelectorAll(".chip");
+    nodes.forEach(function (n) { n.classList.toggle("on", n.dataset.date === state.date); });
+  }
+
+  // ---------- 消息区 ----------
+  function showError(msg) {
+    var area = el("msgArea");
+    area.innerHTML = "";
+    var box = document.createElement("div");
+    box.className = "error-box";
+    var span = document.createElement("span");
+    span.textContent = "⚠ " + msg;
+    var btn = document.createElement("button");
+    btn.textContent = "重试";
+    btn.addEventListener("click", function () { doQuery(); });
+    box.appendChild(span); box.appendChild(btn);
+    area.appendChild(box);
+  }
+  function clearMsg() { el("msgArea").innerHTML = ""; }
+
+  function showSkeleton() {
+    var tb = el("tbody");
+    tb.innerHTML = "";
+    var sk = document.createElement("tr");
+    var td = document.createElement("td");
+    td.colSpan = 4;
+    var wrap = document.createElement("div");
+    wrap.className = "skel";
+    for (var i = 0; i < 6; i++) {
+      var r = document.createElement("div");
+      r.className = "skel-row";
+      wrap.appendChild(r);
+    }
+    td.appendChild(wrap); sk.appendChild(td); tb.appendChild(sk);
+    el("emptyBox").hidden = true;
+    el("resultArea").hidden = false;
+  }
+
+  // ---------- 模式切换 ----------
+  function setMode(m) {
+    state.mode = m;
+    var tabs = document.querySelectorAll(".mtab");
+    tabs.forEach(function (t) { t.classList.toggle("on", t.dataset.mode === m); });
+    el("resultArea").hidden = !(m === "direct" && state.route);
+    el("transferArea").hidden = !(m === "transfer" && state.transferLoaded);
+    el("flightArea").hidden = !(m === "flight" && state.flightLoaded);
+    clearMsg();
+  }
+
+  // ---------- 查询 ----------
+  function doQuery() {
+    clearMsg();
+    if (state.mode === "flight") return doFlightQuery();
+    var from = state.from || resolveInput(el("fromInput"));
+    var to = state.to || resolveInput(el("toInput"));
+    if (!from) return showError("请填写有效的出发地（可从下拉列表选择）");
+    if (!to) return showError("请填写有效的目的地");
+    if (from.code === to.code) return showError("出发地和目的地不能相同");
+    if (!state.date) return showError("请选择出发日期");
+    state.from = from; state.to = to;
+    el("fromInput").value = from.name;
+    el("toInput").value = to.name;
+    if (state.mode === "transfer") return doTransferQuery(from, to);
+
+    lastQueryArgs = { from: from.code, to: to.code, date: state.date };
+    var btn = el("queryBtn");
+    btn.disabled = true;
+    showSkeleton();
+
+    var qs = "from=" + encodeURIComponent(from.name) +
+             "&to=" + encodeURIComponent(to.name) +
+             "&date=" + encodeURIComponent(state.date);
+    fetch("/api/query?" + qs)
+      .then(function (r) { return r.json(); })
+      .then(function (body) {
+        btn.disabled = false;
+        if (!body.ok) { showError(body.error || "查询失败"); renderTable(); return; }
+        state.trains = body.data.trains;
+        state.route = { from: body.data.from, to: body.data.to, date: body.data.date,
+                        cached: body.data.cached, elapsedMs: body.data.elapsedMs };
+        renderTable();
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        showError("网络错误：" + e.message);
+        renderTable();
+      });
+  }
+
+  // ---------- 中转查询 ----------
+  function doTransferQuery(from, to) {
+    var btn = el("queryBtn");
+    btn.disabled = true;
+    state.transferLoaded = true;
+    el("transferArea").hidden = false;
+    el("resultArea").hidden = true;
+    el("flightArea").hidden = true;
+    var list = el("planList");
+    list.innerHTML = "";
+    el("transferEmpty").hidden = true;
+    var sk = document.createElement("div");
+    sk.className = "skel";
+    for (var i = 0; i < 3; i++) {
+      var r = document.createElement("div");
+      r.className = "skel-row";
+      sk.appendChild(r);
+    }
+    list.appendChild(sk);
+    el("transferSummary").textContent =
+      "正在并行查询 12 个铁路枢纽的中转班次（首次约 5~20 秒，之后 30 分钟内秒开）…";
+
+    var qs = "from=" + encodeURIComponent(from.name) +
+             "&to=" + encodeURIComponent(to.name) +
+             "&date=" + encodeURIComponent(state.date);
+    fetch("/api/transfer?" + qs)
+      .then(function (r) { return r.json(); })
+      .then(function (body) {
+        btn.disabled = false;
+        if (!body.ok) { showError(body.error || "中转查询失败"); el("transferSummary").textContent = ""; return; }
+        renderTransfers(body.data);
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        showError("网络错误：" + e.message);
+        el("transferSummary").textContent = "";
+      });
+  }
+
+  function renderTransfers(d) {
+    var list = el("planList");
+    list.innerHTML = "";
+    el("transferEmpty").hidden = d.plans.length > 0;
+    var sum = el("transferSummary");
+    sum.innerHTML = "";
+    var st = document.createElement("span");
+    st.textContent = d.date + " " + d.from + " → " + d.to +
+      "　" + d.totalPlans + " 个方案（搜 " + d.searchedHubs + " 个枢纽，耗时 " +
+      (d.elapsedMs / 1000).toFixed(1) + "s）";
+    sum.appendChild(st);
+    if (d.cached) {
+      var tag = document.createElement("span");
+      tag.className = "cache-tag";
+      tag.textContent = "缓存";
+      sum.appendChild(tag);
+    }
+
+    d.plans.forEach(function (p, idx) {
+      var card = document.createElement("div");
+      card.className = "plan-card";
+
+      var num = document.createElement("div");
+      num.className = "plan-idx";
+      num.textContent = idx + 1;
+      card.appendChild(num);
+
+      var legs = document.createElement("div");
+      legs.className = "plan-legs";
+      legs.appendChild(legLine(p.leg1));
+      var wait = document.createElement("div");
+      var wb = document.createElement("span");
+      wb.className = "leg-wait";
+      wb.textContent = p.hub + " 同站换乘 · 等待 " + fmtDur(p.waitMin);
+      wait.appendChild(wb);
+      legs.appendChild(wait);
+      legs.appendChild(legLine(p.leg2));
+      card.appendChild(legs);
+
+      var meta = document.createElement("div");
+      meta.className = "plan-meta";
+      var total = document.createElement("div");
+      total.className = "total";
+      total.textContent = "全程 " + fmtDur(p.totalMin) +
+        (p.totalDayOffset > 0 ? " +" + p.totalDayOffset + "天" : "");
+      meta.appendChild(total);
+      if (p.minTotalPrice != null) {
+        var pr = document.createElement("div");
+        pr.className = "price";
+        pr.textContent = "¥" + p.minTotalPrice + " 起";
+        meta.appendChild(pr);
+      }
+      var sub = document.createElement("div");
+      sub.className = "sub";
+      sub.textContent = "两段分别购票";
+      meta.appendChild(sub);
+      card.appendChild(meta);
+
+      list.appendChild(card);
+    });
+  }
+
+  function legLine(t) {
+    var div = document.createElement("div");
+    div.className = "leg";
+    var code = document.createElement("span");
+    code.className = "tcode";
+    code.textContent = t.code;
+    div.appendChild(code);
+    var cat = document.createElement("span");
+    cat.className = "cat" + ("GDC".indexOf(t.category) < 0 ? " slow" : "");
+    cat.textContent = t.category;
+    div.appendChild(cat);
+    var tm = document.createElement("span");
+    tm.className = "tm";
+    tm.textContent = t.fromTime + " " + t.fromStation + " → " + t.toTime + " " + t.toStation;
+    div.appendChild(tm);
+    var via = document.createElement("span");
+    via.className = "via";
+    via.textContent = "(" + fmtDur(t.durationMin) + (t.dayOffset > 0 ? "，次日到" : "") + ")";
+    div.appendChild(via);
+    var best = null;
+    t.seats.forEach(function (s) {
+      if (s.price != null && (best === null || s.price < best.price)) best = s;
+    });
+    if (best) {
+      var sh = document.createElement("span");
+      sh.className = "seat-hint";
+      sh.textContent = best.name + " " + fmtPrice(best.price) +
+        " " + (best.avail || "—");
+      div.appendChild(sh);
+    }
+    return div;
+  }
+
+  // ---------- 机票查询 ----------
+  function doFlightQuery() {
+    var from = el("fromInput").value.trim();
+    var to = el("toInput").value.trim();
+    if (!from || !to) return showError("请填写出发和到达城市（如 北京、成都）");
+    if (from === to) return showError("出发和到达城市不能相同");
+    if (!state.date) return showError("请选择出发日期");
+    var btn = el("queryBtn");
+    btn.disabled = true;
+
+    var qs = "from=" + encodeURIComponent(from) +
+             "&to=" + encodeURIComponent(to) +
+             "&date=" + encodeURIComponent(state.date);
+    fetch("/api/flights?" + qs)
+      .then(function (r) { return r.json(); })
+      .then(function (body) {
+        btn.disabled = false;
+        if (!body.ok) return showError(body.error || "暂不支持该城市");
+        state.flightLoaded = true;
+        el("flightArea").hidden = false;
+        el("resultArea").hidden = true;
+        el("transferArea").hidden = true;
+        var d = body.data;
+        el("flightRoute").textContent = d.date + "　" + d.from + " ✈ " + d.to;
+        var row = el("otaRow");
+        row.innerHTML = "";
+        d.links.forEach(function (l, i) {
+          var isMonth = l.site === "天巡整月低价";
+          var a = document.createElement("a");
+          a.className = "ota-btn" + (i === 0 ? " primary" : "") + (isMonth ? " month" : "");
+          a.href = l.url;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+          a.textContent = isMonth ? "📅 看整月低价日历" : l.site + " 查价";
+          if (isMonth) a.title = "全月每天最低价一目了然，高低价走势尽在天巡日历视图";
+          row.appendChild(a);
+        });
+        el("flightCard").hidden = false;
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        showError("网络错误：" + e.message);
+      });
+  }
+
+  // ---------- 渲染 ----------
+  function availCls(avail) {
+    if (avail === "无" || avail === "" ) return "none";
+    return "ok";
+  }
+
+  function renderTable() {
+    var tb = el("tbody");
+    tb.innerHTML = "";
+    var trains = state.trains.filter(function (t) {
+      if (state.cat !== "全部" && t.category !== state.cat) return false;
+      if (state.onlyAvail && !t.seats.some(function (s) {
+        return s.avail !== "" && s.avail !== "无" && s.avail !== "0";
+      })) return false;
+      return true;
+    });
+    trains.sort(function (a, b) {
+      var va = a[state.sortKey], vb = b[state.sortKey];
+      if (state.sortKey === "fromTime") { va = a.fromTime; vb = b.fromTime; }
+      return state.sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0)
+                           : (va > vb ? -1 : va < vb ? 1 : 0);
+    });
+
+    el("emptyBox").hidden = trains.length > 0;
+
+    trains.forEach(function (t) {
+      var tr = document.createElement("tr");
+
+      var tdCode = document.createElement("td");
+      var codeSpan = document.createElement("span");
+      codeSpan.className = "train-code";
+      codeSpan.textContent = t.code;
+      tdCode.appendChild(codeSpan);
+      var cat = document.createElement("span");
+      cat.className = "train-cat" + ("GDC".indexOf(t.category) < 0 ? " slow" : "");
+      cat.textContent = t.category;
+      tdCode.appendChild(cat);
+      if (!t.canBook) {
+        var bn = document.createElement("div");
+        bn.className = "book-no";
+        bn.textContent = "暂不可订";
+        tdCode.appendChild(bn);
+      }
+      tr.appendChild(tdCode);
+
+      var tdRoute = document.createElement("td");
+      var line = document.createElement("div");
+      line.className = "station-line";
+      var s1 = document.createElement("span"); s1.className = "st"; s1.textContent = t.fromStation;
+      var t1 = document.createElement("span"); t1.className = "tm"; t1.textContent = t.fromTime;
+      var ar = document.createElement("span"); ar.className = "arrow-r"; ar.textContent = "→";
+      var s2 = document.createElement("span"); s2.className = "st"; s2.textContent = t.toStation;
+      var t2 = document.createElement("span"); t2.className = "tm"; t2.textContent = t.toTime;
+      line.appendChild(t1); line.appendChild(s1); line.appendChild(ar);
+      line.appendChild(t2); line.appendChild(s2);
+      if (t.dayOffset > 0) {
+        var off = document.createElement("span");
+        off.className = "day-offset";
+        off.textContent = "+" + t.dayOffset + "天";
+        line.appendChild(off);
+      }
+      tdRoute.appendChild(line);
+      tr.appendChild(tdRoute);
+
+      var tdDur = document.createElement("td");
+      var dur = document.createElement("span");
+      dur.textContent = fmtDur(t.durationMin);
+      tdDur.appendChild(dur);
+      tr.appendChild(tdDur);
+
+      var tdSeats = document.createElement("td");
+      var chips = document.createElement("div");
+      chips.className = "seat-chips";
+      t.seats.forEach(function (s) {
+        var chip = document.createElement("span");
+        chip.className = "seat" + (availCls(s.avail) === "none" ? " noavail" : "");
+        var sn = document.createElement("span"); sn.className = "sn"; sn.textContent = s.name;
+        var sp = document.createElement("span"); sp.className = "sp"; sp.textContent = fmtPrice(s.price);
+        var sa = document.createElement("span"); sa.className = "sa " + availCls(s.avail);
+        sa.textContent = s.avail === "" ? "—" : s.avail;
+        chip.appendChild(sn); chip.appendChild(sp); chip.appendChild(sa);
+        chips.appendChild(chip);
+      });
+      tdSeats.appendChild(chips);
+      tr.appendChild(tdSeats);
+
+      tb.appendChild(tr);
+    });
+
+    var sum = el("summary");
+    sum.innerHTML = "";
+    if (state.route) {
+      var txt = document.createElement("span");
+      txt.textContent = state.route.date + " " + state.route.from + " → " + state.route.to +
+                        "　共 " + trains.length + " 趟（全部 " + state.trains.length + " 趟）" +
+                        (state.route.elapsedMs != null ?
+                          "　耗时 " + (state.route.elapsedMs / 1000).toFixed(1) + "s" : "");
+      sum.appendChild(txt);
+      if (state.route.cached) {
+        var tag = document.createElement("span");
+        tag.className = "cache-tag";
+        tag.textContent = "缓存";
+        sum.appendChild(tag);
+      }
+    }
+    el("arrTime").textContent = state.sortKey === "fromTime" ? (state.sortAsc ? "▲" : "▼") : "";
+    el("arrDur").textContent = state.sortKey === "durationMin" ? (state.sortAsc ? "▲" : "▼") : "";
+  }
+
+  // ---------- 事件 ----------
+  function init() {
+    el("clock").textContent = new Date().toLocaleString("zh-CN", { hour12: false });
+
+    document.querySelectorAll(".mtab").forEach(function (t) {
+      t.addEventListener("click", function () { setMode(t.dataset.mode); });
+    });
+
+    loadStations().catch(function (e) {
+      showError("车站表加载失败：" + e.message + "（请刷新重试）");
+    });
+
+    attachAutocomplete(el("fromInput"), function (s) { state.from = s; });
+    attachAutocomplete(el("toInput"), function (s) { state.to = s; });
+    el("fromInput").addEventListener("focus", function () { lastTarget = el("fromInput"); });
+    el("toInput").addEventListener("focus", function () { lastTarget = el("toInput"); });
+
+    var hc = el("hotChips");
+    HOT_CITIES.forEach(function (n) {
+      var c = document.createElement("span");
+      c.className = "chip";
+      c.textContent = n;
+      c.title = "点击填入出发地/目的地";
+      c.addEventListener("click", function () { fillHotCity(n); });
+      hc.appendChild(c);
+    });
+
+    el("swapBtn").addEventListener("click", function () {
+      var fi = el("fromInput"), ti = el("toInput");
+      var tmp = fi.value; fi.value = ti.value; ti.value = tmp;
+      var ts = state.from; state.from = state.to; state.to = ts;
+    });
+
+    el("queryBtn").addEventListener("click", doQuery);
+    [el("fromInput"), el("toInput"), el("dateInput")].forEach(function (inp) {
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") doQuery();
+      });
+    });
+
+    var cc = el("catChips");
+    CATS.forEach(function (c) {
+      var chip = document.createElement("span");
+      chip.className = "chip" + (c === "全部" ? " on" : "");
+      chip.textContent = c;
+      chip.addEventListener("click", function () {
+        state.cat = c;
+        cc.querySelectorAll(".chip").forEach(function (n) { n.classList.toggle("on", n === chip); });
+        renderTable();
+      });
+      cc.appendChild(chip);
+    });
+
+    el("onlyAvail").addEventListener("change", function (e) {
+      state.onlyAvail = e.target.checked;
+      renderTable();
+    });
+
+    document.querySelectorAll("th.sortable").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var key = th.dataset.key;
+        if (state.sortKey === key) state.sortAsc = !state.sortAsc;
+        else { state.sortKey = key; state.sortAsc = true; }
+        renderTable();
+      });
+    });
+
+    initDate();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
